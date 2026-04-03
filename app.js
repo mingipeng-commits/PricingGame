@@ -41,7 +41,14 @@
                 const res = await fetch('/api/ip', { signal: AbortSignal.timeout(2000) });
                 const data = await res.json();
                 this.available = true;
-                this.baseUrl = `http://${data.ip}:${data.port}`;
+                // Use current page origin for cloud deployment, local IP for local
+                const origin = window.location.origin;
+                const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
+                if (isLocal) {
+                    this.baseUrl = `http://${data.ip}:${data.port}`;
+                } else {
+                    this.baseUrl = origin;
+                }
                 this.mobileUrl = `${this.baseUrl}/mobile.html`;
                 return true;
             } catch (e) {

@@ -4,7 +4,7 @@ const path = require('path');
 const os = require('os');
 const { exec } = require('child_process');
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // In-memory game state shared between teacher and mobile clients
 const gameState = {
