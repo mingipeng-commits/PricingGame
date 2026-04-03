@@ -118,6 +118,65 @@
                 </div>
             </div>`;
         },
+
+        async openWTP(productName) {
+            if (!this.available) return;
+            try {
+                await fetch('/api/wtp/clear', { method: 'POST' });
+                await fetch('/api/state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phase: 'wtp', wtpOpen: true, productName, round: 0 }),
+                });
+            } catch (e) {}
+        },
+
+        async closeWTP() {
+            if (!this.available) return;
+            try {
+                await fetch('/api/state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phase: 'round', wtpOpen: false }),
+                });
+            } catch (e) {}
+        },
+
+        async fetchWTPEntries() {
+            if (!this.available) return null;
+            try {
+                const res = await fetch('/api/wtp');
+                return await res.json();
+            } catch (e) { return null; }
+        },
+
+        _wtpTimer: null,
+        startWTPPolling(onUpdate) {
+            this.stopWTPPolling();
+            this._wtpTimer = setInterval(async () => {
+                const data = await this.fetchWTPEntries();
+                if (data) onUpdate(data.entries);
+            }, 2000);
+        },
+        stopWTPPolling() {
+            if (this._wtpTimer) { clearInterval(this._wtpTimer); this._wtpTimer = null; }
+        },
+
+        buildWTPQRSection(productName) {
+            const url = this.mobileUrl;
+            return `
+            <div class="qr-section" id="wtp-qr-section" style="margin-bottom:1.5rem">
+                <h3>同學請掃描 QR Code 提交你的願付價格</h3>
+                <div class="qr-display">
+                    <img class="qr-img" src="${this.getQRImageUrl(url)}" alt="QR Code">
+                    <div class="qr-info">
+                        <div style="font-weight:600;font-size:.95rem;margin-bottom:.3rem">願付價格收集 — ${productName}</div>
+                        <div style="font-size:.85rem;color:var(--gray-500)">掃描後輸入姓名和你的願付價格</div>
+                        <div class="qr-url">${url}</div>
+                    </div>
+                </div>
+            </div>`;
+        },
     };
 
     function showStep(name) {
@@ -164,11 +223,34 @@
     }
 
     // ───── WTP COLLECTION ─────
+    // Mobile submissions stored separately so we can show names
+    let mobileWTPEntries = [];
+
     function initWTP() {
         $('#wtp-product-name').textContent = state.config.productName;
         $('#wtp-total').textContent = state.config.numStudents;
         state.wtpPrices = [];
+        mobileWTPEntries = [];
         renderWTPTags();
+
+        // Show QR code if server available
+        if (server.available) {
+            server.openWTP(state.config.productName);
+            $('#wtp-qr-area').innerHTML = server.buildWTPQRSection(state.config.productName);
+            $('#wtp-live-list').classList.remove('hidden');
+            $('#wtp-live-tags').innerHTML = '';
+            $('#wtp-live-count').textContent = '0';
+
+            // Poll for mobile submissions
+            server.startWTPPolling((entries) => {
+                mobileWTPEntries = entries;
+                renderMobileWTPTags();
+                renderWTPTags(); // update total count
+            });
+        } else {
+            $('#wtp-qr-area').innerHTML = '';
+            $('#wtp-live-list').classList.add('hidden');
+        }
 
         const input = $('#wtp-input');
         const addOne = () => {
@@ -191,7 +273,8 @@
         };
 
         $('#btn-random-wtp').onclick = () => {
-            const need = state.config.numStudents - state.wtpPrices.length;
+            const totalNow = state.wtpPrices.length + mobileWTPEntries.length;
+            const need = state.config.numStudents - totalNow;
             if (need <= 0) return;
             for (let i = 0; i < need; i++) {
                 state.wtpPrices.push(Math.round(50 + Math.random() * 450));
@@ -200,9 +283,30 @@
         };
 
         $('#btn-wtp-done').onclick = () => {
+            // Merge mobile submissions into wtpPrices
+            const mobilePrices = mobileWTPEntries.map(e => e.price);
+            state.wtpPrices = [...state.wtpPrices, ...mobilePrices];
+            // Stop WTP polling & notify server
+            server.stopWTPPolling();
+            server.closeWTP();
             initRound(1);
             showStep('round1');
         };
+    }
+
+    function renderMobileWTPTags() {
+        const container = $('#wtp-live-tags');
+        if (!container) return;
+        container.innerHTML = '';
+        mobileWTPEntries.forEach((entry) => {
+            const tag = document.createElement('span');
+            tag.className = 'wtp-tag';
+            tag.style.background = '#dcfce7';
+            tag.style.color = '#16a34a';
+            tag.innerHTML = `${entry.name}: $${fmt(entry.price)}`;
+            container.appendChild(tag);
+        });
+        $('#wtp-live-count').textContent = mobileWTPEntries.length;
     }
 
     function renderWTPTags() {
@@ -220,7 +324,9 @@
                 renderWTPTags();
             };
         });
-        const n = state.wtpPrices.length;
+        const manualCount = state.wtpPrices.length;
+        const mobileCount = mobileWTPEntries.length;
+        const n = manualCount + mobileCount;
         const total = state.config.numStudents;
         $('#wtp-count').textContent = n;
         const pct = Math.min(100, (n / total) * 100);

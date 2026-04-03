@@ -1,6 +1,6 @@
 {
   "name": "pricing-game",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Pricing Game - 收益管理模擬遊戲",
   "main": "server.js",
   "scripts": {

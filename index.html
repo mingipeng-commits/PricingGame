@@ -16,7 +16,7 @@
                     <p class="subtitle">收益管理模擬遊戲</p>
                 </div>
                 <div class="header-meta">
-                    <span class="version-tag">ver.1.5.0 · 2026-04-03</span>
+                    <span class="version-tag">ver.1.6.0 · 2026-04-03</span>
                     <span class="clock" id="header-clock"></span>
                 </div>
             </div>
@@ -91,7 +91,18 @@
             <div class="card">
                 <h2>顧客願付價格（WTP）</h2>
                 <p class="card-desc">請輸入每位同學對「<span id="wtp-product-name"></span>」的願付價格。<br>
-                每位同學獨立思考，不可討論，將價格寫在便利貼上。</p>
+                每位同學獨立思考，不可討論。可掃描 QR Code 用手機提交，或由老師在下方手動輸入。</p>
+
+                <!-- QR Code for mobile WTP submission -->
+                <div id="wtp-qr-area"></div>
+
+                <!-- Live submissions from phones -->
+                <div id="wtp-live-list" class="hidden" style="margin-bottom:1.5rem">
+                    <h3 style="margin-bottom:.5rem">手機已提交 (<span id="wtp-live-count">0</span>)</h3>
+                    <div id="wtp-live-tags" class="wtp-tags"></div>
+                </div>
+
+                <h3 style="margin-bottom:.5rem">老師手動輸入</h3>
                 <div class="wtp-input-area">
                     <div class="wtp-quick-entry">
                         <input type="number" id="wtp-input" placeholder="輸入價格..." min="0" step="any">

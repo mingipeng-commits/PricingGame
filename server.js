@@ -8,12 +8,16 @@ const PORT = process.env.PORT || 3000;
 
 // In-memory game state shared between teacher and mobile clients
 const gameState = {
+    phase: 'setup',  // 'setup', 'wtp', 'round'
     round: 0,
     segment: 0,
     roundName: '',
     numGroups: 8,
+    productName: '',
     prices: {},   // { "round-segment": { groupNum: price } }
     locked: {},   // { "round-segment": { groupNum: true } }
+    wtpEntries: [],  // [{ name, price, timestamp }]
+    wtpOpen: false,
 };
 
 function getLocalIP() {
@@ -63,18 +67,53 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/state') {
         if (req.method === 'POST') {
             const data = await readBody(req);
-            gameState.round = data.round;
-            gameState.segment = data.segment;
-            gameState.roundName = data.roundName || '';
-            gameState.numGroups = data.numGroups || 8;
+            gameState.phase = data.phase || gameState.phase;
+            gameState.round = data.round != null ? data.round : gameState.round;
+            gameState.segment = data.segment != null ? data.segment : gameState.segment;
+            gameState.roundName = data.roundName || gameState.roundName;
+            gameState.numGroups = data.numGroups || gameState.numGroups;
+            gameState.productName = data.productName || gameState.productName;
+            gameState.wtpOpen = data.wtpOpen != null ? data.wtpOpen : gameState.wtpOpen;
             return json(res, { ok: true });
         }
         return json(res, {
+            phase: gameState.phase,
             round: gameState.round,
             segment: gameState.segment,
             roundName: gameState.roundName,
             numGroups: gameState.numGroups,
+            productName: gameState.productName,
+            wtpOpen: gameState.wtpOpen,
         });
+    }
+
+    // ── WTP (Willingness To Pay) ──
+    if (url.pathname === '/api/wtp') {
+        if (req.method === 'POST') {
+            if (!gameState.wtpOpen) {
+                return json(res, { error: '願付價格收集尚未開放' }, 403);
+            }
+            const data = await readBody(req);
+            if (!data.name || data.name.trim() === '') {
+                return json(res, { error: '請輸入姓名' }, 400);
+            }
+            if (data.price == null || isNaN(data.price) || data.price < 0) {
+                return json(res, { error: '請輸入有效的價格' }, 400);
+            }
+            gameState.wtpEntries.push({
+                name: data.name.trim(),
+                price: Number(data.price),
+                timestamp: Date.now(),
+            });
+            return json(res, { ok: true, count: gameState.wtpEntries.length });
+        }
+        // GET - return all WTP entries
+        return json(res, { entries: gameState.wtpEntries, open: gameState.wtpOpen });
+    }
+
+    if (url.pathname === '/api/wtp/clear' && req.method === 'POST') {
+        gameState.wtpEntries = [];
+        return json(res, { ok: true });
     }
 
     if (url.pathname === '/api/price' && req.method === 'POST') {
