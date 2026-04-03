@@ -303,7 +303,7 @@
             tag.className = 'wtp-tag';
             tag.style.background = '#dcfce7';
             tag.style.color = '#16a34a';
-            tag.innerHTML = `${entry.name}: $${fmt(entry.price)}`;
+            tag.innerHTML = `${entry.name}`;
             container.appendChild(tag);
         });
         $('#wtp-live-count').textContent = mobileWTPEntries.length;
