@@ -1,11 +1,10 @@
 /* ============================================================
-   Pricing Game - Revenue Management Simulation
+   Pricing Game - 收益管理模擬遊戲
    ============================================================ */
 
 (function () {
     'use strict';
 
-    // ───── Game State ─────
     const state = {
         config: {
             numStudents: 40,
@@ -13,14 +12,14 @@
             numCustomers: 20,
             repricingInterval: 5,
             supplyLimit: 7,
-            productName: 'Travel Package',
+            productName: '旅遊行程',
+            drawMode: 'auto',
         },
-        wtpPrices: [],          // all collected WTP prices
-        rounds: {},             // round data keyed by round number (1-4)
+        wtpPrices: [],
+        rounds: {},
         currentStep: 'setup',
     };
 
-    // ───── DOM Helpers ─────
     const $ = (sel, ctx) => (ctx || document).querySelector(sel);
     const $$ = (sel, ctx) => [...(ctx || document).querySelectorAll(sel)];
 
@@ -58,7 +57,8 @@
             state.config.numCustomers = +$('#numCustomers').value;
             state.config.repricingInterval = +$('#repricingInterval').value;
             state.config.supplyLimit = +$('#supplyLimit').value;
-            state.config.productName = $('#productName').value || 'Product';
+            state.config.productName = $('#productName').value || '產品';
+            state.config.drawMode = document.querySelector('input[name="drawMode"]:checked').value;
             initWTP();
             showStep('wtp');
         });
@@ -71,7 +71,6 @@
         state.wtpPrices = [];
         renderWTPTags();
 
-        // Quick entry
         const input = $('#wtp-input');
         const addOne = () => {
             const v = parseFloat(input.value);
@@ -84,7 +83,6 @@
         $('#btn-add-wtp').onclick = addOne;
         input.onkeydown = e => { if (e.key === 'Enter') addOne(); };
 
-        // Bulk entry
         $('#btn-bulk-wtp').onclick = () => {
             const raw = $('#wtp-bulk').value;
             const nums = raw.split(/[\s,;\n]+/).map(Number).filter(n => !isNaN(n) && n >= 0);
@@ -93,7 +91,6 @@
             renderWTPTags();
         };
 
-        // Random generation
         $('#btn-random-wtp').onclick = () => {
             const need = state.config.numStudents - state.wtpPrices.length;
             if (need <= 0) return;
@@ -103,7 +100,6 @@
             renderWTPTags();
         };
 
-        // Proceed
         $('#btn-wtp-done').onclick = () => {
             initRound(1);
             showStep('round1');
@@ -135,50 +131,62 @@
 
     // ───── ROUND LOGIC ─────
     function initRound(roundNum) {
-        const { numGroups, numCustomers, repricingInterval, supplyLimit } = state.config;
+        const { numGroups, numCustomers, repricingInterval, supplyLimit, drawMode } = state.config;
         const container = $(`.round-container[data-round="${roundNum}"]`);
         const canReprice = roundNum >= 3;
         const hasSupply = roundNum === 4;
 
         const roundData = {
-            groupPrices: {},       // { segmentIndex: { groupIdx: price } }
+            groupPrices: {},
             draws: [],
-            results: [],           // per-group results array
+            results: [],
             drawIndex: 0,
             currentSegment: 0,
             allDrawn: false,
         };
         state.rounds[roundNum] = roundData;
 
-        // Compute number of segments
         const numSegments = canReprice ? Math.ceil(numCustomers / repricingInterval) : 1;
 
-        // Build HTML
+        const roundNames = { 1: '第一輪', 2: '第二輪', 3: '第三輪', 4: '第四輪（決勝輪）' };
         let descText = '';
-        if (roundNum === 1) descText = 'Each group sets a price. We draw customers randomly and check if the WTP >= group price (deal) or not.';
-        else if (roundNum === 2) descText = 'Based on Round 1 results & market prices, each group sets a new price. A fresh set of customers is drawn.';
-        else if (roundNum === 3) descText = `Like Round 2, but groups can reprice every ${repricingInterval} customers. Total ${numSegments} pricing opportunities.`;
-        else descText = `Final round! Same repricing rules, but each group only has ${supplyLimit} units of supply. Once sold out, no more deals.`;
+        if (roundNum === 1) descText = '各組設定售價後，隨機抽取顧客的願付價格。若願付價格 ≥ 組別定價，即為成交。';
+        else if (roundNum === 2) descText = '根據第一輪的結果與市場價格，各組重新定價。將重新抽取一組新的顧客。';
+        else if (roundNum === 3) descText = `與第二輪相似，但每抽取 ${repricingInterval} 位顧客後可重新定價。本輪共有 ${numSegments} 次定價機會。`;
+        else descText = `決勝輪！規則同第三輪，但每組僅有 ${supplyLimit} 個產品庫存。售完即止，無法再成交。`;
+
+        const isManual = drawMode === 'manual';
+        const drawModeLabel = isManual ? '手動輸入模式' : '自動抽籤模式';
 
         let html = `
         <div class="card">
             <div class="round-header">
-                <h2>Round ${roundNum}${roundNum === 4 ? ' (Final)' : ''}</h2>
-                <span class="round-badge ${roundNum === 4 ? 'badge-danger' : 'badge-info'}">
-                    ${hasSupply ? `Supply: ${supplyLimit} units` : `${numCustomers} customers`}
-                </span>
+                <h2>${roundNames[roundNum]}</h2>
+                <div>
+                    <span class="round-badge ${roundNum === 4 ? 'badge-danger' : 'badge-info'}">
+                        ${hasSupply ? `庫存：${supplyLimit} 個` : `${numCustomers} 位顧客`}
+                    </span>
+                    <span class="round-badge badge-warning">${drawModeLabel}</span>
+                </div>
             </div>
             <div class="round-description">${descText}</div>
             <div id="r${roundNum}-pricing-section">
-                <h3 style="margin-bottom:.75rem">Group Pricing ${canReprice ? '(Segment 1)' : ''}</h3>
+                <h3 style="margin-bottom:.75rem">各組定價 ${canReprice ? '（第 1 段）' : ''}</h3>
                 <div class="pricing-input-grid" id="r${roundNum}-pricing-grid"></div>
-                <button class="btn btn-primary" id="r${roundNum}-submit-prices">Lock Prices &amp; Start Drawing</button>
+                <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
             </div>
             <div id="r${roundNum}-game-area" class="hidden">
                 <div class="draw-controls">
-                    <button class="btn btn-primary" id="r${roundNum}-draw-one">Draw Next Customer</button>
-                    <button class="btn btn-secondary" id="r${roundNum}-draw-all">Draw All Remaining</button>
-                    <span class="draw-status" id="r${roundNum}-draw-status">0 / ${numCustomers} drawn</span>
+                    ${isManual ? `
+                        <div class="manual-draw-area">
+                            <input type="number" id="r${roundNum}-manual-input" placeholder="輸入抽出的價格" min="0" step="any">
+                            <button class="btn btn-warning" id="r${roundNum}-manual-draw">確認此顧客</button>
+                        </div>
+                    ` : `
+                        <button class="btn btn-primary" id="r${roundNum}-draw-one">抽取下一位顧客</button>
+                        <button class="btn btn-secondary" id="r${roundNum}-draw-all">自動抽完全部</button>
+                    `}
+                    <span class="draw-status" id="r${roundNum}-draw-status">已抽取 0 / ${numCustomers} 位</span>
                 </div>
                 <div class="round-table-wrap">
                     <table class="round-table" id="r${roundNum}-table">
@@ -189,8 +197,8 @@
             </div>
             <div id="r${roundNum}-summary" class="hidden"></div>
             <div class="round-nav">
-                ${roundNum > 1 ? `<button class="btn btn-secondary" id="r${roundNum}-prev">Back to Round ${roundNum - 1}</button>` : '<span></span>'}
-                <button class="btn btn-success btn-lg hidden" id="r${roundNum}-next">${roundNum < 4 ? `Proceed to Round ${roundNum + 1}` : 'View Final Results'}</button>
+                ${roundNum > 1 ? `<button class="btn btn-secondary" id="r${roundNum}-prev">返回${roundNames[roundNum - 1] || ''}</button>` : '<span></span>'}
+                <button class="btn btn-success btn-lg hidden" id="r${roundNum}-next">${roundNum < 4 ? `進入${roundNames[roundNum + 1] || ''}` : '查看最終結果'}</button>
             </div>
         </div>`;
         container.innerHTML = html;
@@ -200,24 +208,24 @@
         for (let g = 0; g < numGroups; g++) {
             const div = document.createElement('div');
             div.className = 'pricing-input-card';
-            div.innerHTML = `<label>Group ${g + 1}</label><input type="number" id="r${roundNum}-gp-${g}" min="0" step="any" placeholder="Price">`;
+            div.innerHTML = `<label>第 ${g + 1} 組</label><input type="number" id="r${roundNum}-gp-${g}" min="0" step="any" placeholder="定價">`;
             pricingGrid.appendChild(div);
         }
 
         // Build table header
         const thead = $(`#r${roundNum}-thead`);
-        let hRow = '<tr><th>#</th><th>WTP Price</th>';
-        for (let g = 0; g < numGroups; g++) hRow += `<th class="group-header">Group ${g + 1}</th>`;
+        let hRow = '<tr><th>#</th><th>願付價格</th>';
+        for (let g = 0; g < numGroups; g++) hRow += `<th class="group-header">第 ${g + 1} 組</th>`;
         hRow += '</tr>';
         thead.innerHTML = hRow;
 
-        // State per group for this round
+        // State per group
         const groupState = [];
         for (let g = 0; g < numGroups; g++) {
             groupState.push({ deals: 0, revenue: 0, soldOut: false, soldCount: 0 });
         }
 
-        // Shuffle WTP for this round
+        // Prepare WTP pool for auto mode
         let wtpPool = [...state.wtpPrices];
         shuffle(wtpPool);
         wtpPool = wtpPool.slice(0, numCustomers);
@@ -232,36 +240,67 @@
                 if (isNaN(v) || v < 0) { valid = false; break; }
                 prices[g] = v;
             }
-            if (!valid) { alert('Please enter a valid price for every group.'); return; }
+            if (!valid) { alert('請為每一組輸入有效的定價。'); return; }
             roundData.groupPrices[seg] = prices;
 
-            // Lock inputs
             for (let g = 0; g < numGroups; g++) {
                 $(`#r${roundNum}-gp-${g}`).disabled = true;
                 $(`#r${roundNum}-gp-${g}`).closest('.pricing-input-card').classList.add('submitted');
             }
             $(`#r${roundNum}-submit-prices`).classList.add('hidden');
-
-            // Add pricing row to table
             addPricingRow(roundNum, seg, prices, false);
-
-            // Show game area
             $(`#r${roundNum}-game-area`).classList.remove('hidden');
+
+            // Focus manual input if manual mode
+            if (isManual) {
+                const mi = $(`#r${roundNum}-manual-input`);
+                if (mi) mi.focus();
+            }
         };
 
-        // Draw one
-        $(`#r${roundNum}-draw-one`).onclick = () => drawCustomer(roundNum, wtpPool, groupState, numSegments);
-        // Draw all
-        $(`#r${roundNum}-draw-all`).onclick = () => {
-            const delay = 150;
-            let count = 0;
-            const interval = setInterval(() => {
-                if (roundData.allDrawn) { clearInterval(interval); return; }
-                drawCustomer(roundNum, wtpPool, groupState, numSegments);
-                count++;
-                if (count > numCustomers + numSegments) clearInterval(interval);
-            }, delay);
-        };
+        // Draw handlers
+        if (isManual) {
+            const manualConfirm = () => {
+                const mi = $(`#r${roundNum}-manual-input`);
+                const v = parseFloat(mi.value);
+                if (isNaN(v) || v < 0) { alert('請輸入有效的顧客願付價格。'); return; }
+                mi.value = '';
+                mi.focus();
+                processCustomer(roundNum, v, groupState, numSegments, wtpPool);
+            };
+            // Defer event binding until after DOM is created
+            setTimeout(() => {
+                const btn = $(`#r${roundNum}-manual-draw`);
+                const input = $(`#r${roundNum}-manual-input`);
+                if (btn) btn.onclick = manualConfirm;
+                if (input) input.onkeydown = e => { if (e.key === 'Enter') manualConfirm(); };
+            }, 0);
+        } else {
+            $(`#r${roundNum}-draw-one`).onclick = () => {
+                const rd = state.rounds[roundNum];
+                if (rd.allDrawn || rd.drawIndex >= numCustomers) return;
+                const wtp = wtpPool[rd.drawIndex];
+                processCustomer(roundNum, wtp, groupState, numSegments, wtpPool);
+            };
+            $(`#r${roundNum}-draw-all`).onclick = () => {
+                const delay = 150;
+                const interval = setInterval(() => {
+                    const rd = state.rounds[roundNum];
+                    if (rd.allDrawn) { clearInterval(interval); return; }
+                    if (rd.drawIndex >= numCustomers) { clearInterval(interval); return; }
+                    // Check if repricing is needed - if so, stop auto
+                    const canR = roundNum >= 3;
+                    const di = rd.drawIndex;
+                    if (canR && di > 0 && di % repricingInterval === 0 && !rd.groupPrices[Math.floor(di / repricingInterval)]) {
+                        clearInterval(interval);
+                        processCustomer(roundNum, wtpPool[di], groupState, numSegments, wtpPool);
+                        return;
+                    }
+                    const wtp = wtpPool[rd.drawIndex];
+                    processCustomer(roundNum, wtp, groupState, numSegments, wtpPool);
+                }, delay);
+            };
+        }
 
         // Navigation
         if (roundNum > 1) {
@@ -283,7 +322,7 @@
         const tbody = $(`#r${roundNum}-tbody`);
         const tr = document.createElement('tr');
         tr.className = isRepricing ? 'row-repricing' : 'row-pricing';
-        let label = isRepricing ? `Reprice #${segment + 1}` : (segment === 0 ? 'Set Price' : `Price #${segment + 1}`);
+        let label = isRepricing ? `改價 #${segment + 1}` : (segment === 0 ? '初始定價' : `定價 #${segment + 1}`);
         let cells = `<td>${label}</td><td>-</td>`;
         for (let g = 0; g < numGroups; g++) {
             cells += `<td>$${prices[g]}</td>`;
@@ -292,7 +331,7 @@
         tbody.appendChild(tr);
     }
 
-    function drawCustomer(roundNum, wtpPool, groupState, numSegments) {
+    function processCustomer(roundNum, wtp, groupState, numSegments, wtpPool) {
         const rd = state.rounds[roundNum];
         const { numGroups, numCustomers, repricingInterval, supplyLimit } = state.config;
         const canReprice = roundNum >= 3;
@@ -307,24 +346,20 @@
             return;
         }
 
-        // Check if we need repricing before this draw
+        // Check if repricing needed before this draw
         if (canReprice && drawIdx > 0 && drawIdx % repricingInterval === 0) {
             const nextSeg = Math.floor(drawIdx / repricingInterval);
             if (!rd.groupPrices[nextSeg]) {
-                // Show repricing modal
-                showRepricingModal(roundNum, nextSeg, groupState, wtpPool, numSegments);
+                showRepricingModal(roundNum, nextSeg, groupState, wtpPool, numSegments, wtp);
                 return;
             }
         }
 
-        // Determine current segment
         const currentSeg = canReprice ? Math.floor(drawIdx / repricingInterval) : 0;
         const prices = rd.groupPrices[currentSeg] || rd.groupPrices[rd.currentSegment];
 
-        const wtp = wtpPool[drawIdx];
         rd.drawIndex++;
 
-        // Build row
         const tbody = $(`#r${roundNum}-tbody`);
         const tr = document.createElement('tr');
         tr.className = 'row-highlight animate-in';
@@ -333,7 +368,7 @@
             const gPrice = prices[g];
             if (hasSupply && groupState[g].soldOut) {
                 if (wtp >= gPrice) {
-                    cells += `<td class="cell-oos">Out of Stock</td>`;
+                    cells += `<td class="cell-oos">已售完</td>`;
                 } else {
                     cells += `<td class="cell-no-deal">-</td>`;
                 }
@@ -346,7 +381,7 @@
                     if (groupState[g].soldCount >= supplyLimit) {
                         groupState[g].soldOut = true;
                     }
-                    cells += `<td class="cell-deal">$${gPrice} (#${soldNum})</td>`;
+                    cells += `<td class="cell-deal">$${gPrice} (第${soldNum}筆)</td>`;
                 } else {
                     cells += `<td class="cell-deal">$${gPrice}</td>`;
                 }
@@ -358,16 +393,15 @@
         tbody.appendChild(tr);
         tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-        $(`#r${roundNum}-draw-status`).textContent = `${rd.drawIndex} / ${numCustomers} drawn`;
+        $(`#r${roundNum}-draw-status`).textContent = `已抽取 ${rd.drawIndex} / ${numCustomers} 位`;
 
-        // Check if done
         if (rd.drawIndex >= numCustomers) {
             rd.allDrawn = true;
             finishRound(roundNum, groupState);
         }
     }
 
-    function showRepricingModal(roundNum, segment, groupState, wtpPool, numSegments) {
+    function showRepricingModal(roundNum, segment, groupState, wtpPool, numSegments, pendingWtp) {
         const { numGroups } = state.config;
         const rd = state.rounds[roundNum];
         const prevPrices = rd.groupPrices[segment - 1] || rd.groupPrices[0];
@@ -378,11 +412,11 @@
         for (let g = 0; g < numGroups; g++) {
             const prevP = prevPrices[g];
             const info = groupState[g];
-            let extra = `Deals: ${info.deals}, Revenue: $${info.revenue}`;
-            if (roundNum === 4) extra += `, Sold: ${info.soldCount}/${state.config.supplyLimit}`;
+            let extra = `成交：${info.deals} 筆，營收：$${info.revenue}`;
+            if (roundNum === 4) extra += `，已售：${info.soldCount}/${state.config.supplyLimit}`;
             inputsHtml += `
                 <div class="pricing-input-card">
-                    <label>Group ${g + 1}</label>
+                    <label>第 ${g + 1} 組</label>
                     <input type="number" id="rp-${roundNum}-${segment}-${g}" value="${prevP}" min="0" step="any">
                     <div style="font-size:.7rem;color:var(--gray-500);margin-top:.25rem">${extra}</div>
                 </div>`;
@@ -391,11 +425,11 @@
 
         overlay.innerHTML = `
         <div class="modal">
-            <h3>Repricing Opportunity - Segment ${segment + 1} of ${numSegments}</h3>
-            <p style="margin-bottom:1rem;color:var(--gray-600)">Review performance and set new prices for the next ${state.config.repricingInterval} customers.</p>
+            <h3>重新定價機會 - 第 ${segment + 1} / ${numSegments} 段</h3>
+            <p style="margin-bottom:1rem;color:var(--gray-600)">檢視目前績效，為接下來的 ${state.config.repricingInterval} 位顧客設定新價格。</p>
             ${inputsHtml}
             <div class="text-center mt-1">
-                <button class="btn btn-warning btn-lg" id="rp-confirm-${roundNum}-${segment}">Confirm New Prices</button>
+                <button class="btn btn-warning btn-lg" id="rp-confirm-${roundNum}-${segment}">確認新定價</button>
             </div>
         </div>`;
         document.body.appendChild(overlay);
@@ -408,27 +442,30 @@
                 if (isNaN(v) || v < 0) { valid = false; break; }
                 prices[g] = v;
             }
-            if (!valid) { alert('Please enter valid prices.'); return; }
+            if (!valid) { alert('請輸入有效的定價。'); return; }
             rd.groupPrices[segment] = prices;
             rd.currentSegment = segment;
             overlay.remove();
-
-            // Add repricing row
             addPricingRow(roundNum, segment, prices, true);
-
-            // Continue drawing
-            drawCustomer(roundNum, wtpPool, groupState, numSegments);
+            // Process the pending customer
+            processCustomer(roundNum, pendingWtp, groupState, numSegments, wtpPool);
         };
     }
 
     function finishRound(roundNum, groupState) {
-        const { numGroups, numCustomers } = state.config;
+        const { numGroups, numCustomers, drawMode } = state.config;
 
         // Disable draw buttons
-        $(`#r${roundNum}-draw-one`).disabled = true;
-        $(`#r${roundNum}-draw-all`).disabled = true;
+        if (drawMode === 'manual') {
+            const mi = $(`#r${roundNum}-manual-input`);
+            const mb = $(`#r${roundNum}-manual-draw`);
+            if (mi) mi.disabled = true;
+            if (mb) mb.disabled = true;
+        } else {
+            $(`#r${roundNum}-draw-one`).disabled = true;
+            $(`#r${roundNum}-draw-all`).disabled = true;
+        }
 
-        // Store results
         state.rounds[roundNum].groupResults = groupState.map((gs, g) => ({
             group: g + 1,
             deals: gs.deals,
@@ -437,19 +474,19 @@
             avgDealPrice: gs.deals > 0 ? gs.revenue / gs.deals : 0,
         }));
 
-        // Build summary
         const results = state.rounds[roundNum].groupResults;
         const sorted = [...results].sort((a, b) => b.revenue - a.revenue);
+        const roundNames = { 1: '第一輪', 2: '第二輪', 3: '第三輪', 4: '第四輪' };
 
-        let summaryHtml = `<h3 style="margin-bottom:1rem">Round ${roundNum} Results</h3>`;
+        let summaryHtml = `<h3 style="margin-bottom:1rem">${roundNames[roundNum]}結果</h3>`;
         summaryHtml += '<div class="summary-table-wrap"><table class="summary-table"><thead><tr>';
-        summaryHtml += '<th>Rank</th><th>Group</th><th>Deals</th><th>Success Rate</th><th>Revenue</th><th>Avg Price/Deal</th>';
+        summaryHtml += '<th>排名</th><th>組別</th><th>成交數</th><th>成交率</th><th>營收</th><th>平均成交價</th>';
         summaryHtml += '</tr></thead><tbody>';
         sorted.forEach((r, i) => {
             const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
             summaryHtml += `<tr class="${rankClass}">
                 <td>${i + 1}</td>
-                <td>Group ${r.group}</td>
+                <td>第 ${r.group} 組</td>
                 <td>${r.deals}</td>
                 <td>${(r.ratio * 100).toFixed(1)}%</td>
                 <td>$${r.revenue.toFixed(0)}</td>
@@ -458,19 +495,18 @@
         });
         summaryHtml += '</tbody></table></div>';
 
-        // Cumulative ranking
         if (roundNum > 1) {
             const cumul = cumulativeResults(roundNum);
             const cSorted = [...cumul].sort((a, b) => b.totalRevenue - a.totalRevenue);
-            summaryHtml += `<h3 style="margin:1.5rem 0 1rem">Cumulative Rankings (Rounds 1-${roundNum})</h3>`;
+            summaryHtml += `<h3 style="margin:1.5rem 0 1rem">累計排名（第一輪至${roundNames[roundNum]}）</h3>`;
             summaryHtml += '<div class="summary-table-wrap"><table class="summary-table"><thead><tr>';
-            summaryHtml += '<th>Rank</th><th>Group</th><th>Total Deals</th><th>Total Revenue</th><th>Avg Price/Deal</th>';
+            summaryHtml += '<th>排名</th><th>組別</th><th>總成交數</th><th>總營收</th><th>平均成交價</th>';
             summaryHtml += '</tr></thead><tbody>';
             cSorted.forEach((r, i) => {
                 const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
                 summaryHtml += `<tr class="${rankClass}">
                     <td>${i + 1}</td>
-                    <td>Group ${r.group}</td>
+                    <td>第 ${r.group} 組</td>
                     <td>${r.totalDeals}</td>
                     <td>$${r.totalRevenue.toFixed(0)}</td>
                     <td>$${r.totalDeals > 0 ? (r.totalRevenue / r.totalDeals).toFixed(1) : '0'}</td>
@@ -510,25 +546,23 @@
 
         let html = '';
 
-        // Podium
         if (sorted.length >= 3) {
             html += '<div class="podium">';
-            html += `<div class="podium-item podium-2"><div class="podium-rank">2nd</div><div class="podium-name">Group ${sorted[1].group}</div><div class="podium-amount">$${sorted[1].totalRevenue.toFixed(0)}</div></div>`;
-            html += `<div class="podium-item podium-1"><div class="podium-rank">1st</div><div class="podium-name">Group ${sorted[0].group}</div><div class="podium-amount">$${sorted[0].totalRevenue.toFixed(0)}</div></div>`;
-            html += `<div class="podium-item podium-3"><div class="podium-rank">3rd</div><div class="podium-name">Group ${sorted[2].group}</div><div class="podium-amount">$${sorted[2].totalRevenue.toFixed(0)}</div></div>`;
+            html += `<div class="podium-item podium-2"><div class="podium-rank">第二名</div><div class="podium-name">第 ${sorted[1].group} 組</div><div class="podium-amount">$${sorted[1].totalRevenue.toFixed(0)}</div></div>`;
+            html += `<div class="podium-item podium-1"><div class="podium-rank">第一名</div><div class="podium-name">第 ${sorted[0].group} 組</div><div class="podium-amount">$${sorted[0].totalRevenue.toFixed(0)}</div></div>`;
+            html += `<div class="podium-item podium-3"><div class="podium-rank">第三名</div><div class="podium-name">第 ${sorted[2].group} 組</div><div class="podium-amount">$${sorted[2].totalRevenue.toFixed(0)}</div></div>`;
             html += '</div>';
         }
 
-        // Full table
         html += '<div class="summary-table-wrap"><table class="summary-table"><thead><tr>';
-        html += '<th>Final Rank</th><th>Group</th><th>Total Deals</th><th>Total Revenue</th><th>Avg Price/Deal</th>';
+        html += '<th>最終排名</th><th>組別</th><th>總成交數</th><th>總營收</th><th>平均成交價</th>';
         html += '</tr></thead><tbody>';
         sorted.forEach((r, i) => {
             const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
             const avg = r.totalDeals > 0 ? (r.totalRevenue / r.totalDeals).toFixed(1) : '0';
             html += `<tr class="${rankClass}">
                 <td>${i + 1}</td>
-                <td>Group ${r.group}</td>
+                <td>第 ${r.group} 組</td>
                 <td>${r.totalDeals}</td>
                 <td>$${r.totalRevenue.toFixed(0)}</td>
                 <td>$${avg}</td>
@@ -536,14 +570,13 @@
         });
         html += '</tbody></table></div>';
 
-        // Per-round breakdown
-        html += '<h3 style="margin:1.5rem 0 1rem">Per-Round Breakdown</h3>';
+        html += '<h3 style="margin:1.5rem 0 1rem">各輪營收明細</h3>';
         html += '<div class="summary-table-wrap"><table class="summary-table"><thead><tr>';
-        html += '<th>Group</th><th>R1 Revenue</th><th>R2 Revenue</th><th>R3 Revenue</th><th>R4 Revenue</th><th>Total</th>';
+        html += '<th>組別</th><th>第一輪</th><th>第二輪</th><th>第三輪</th><th>第四輪</th><th>總計</th>';
         html += '</tr></thead><tbody>';
         for (let g = 0; g < numGroups; g++) {
             let total = 0;
-            html += `<tr><td>Group ${g + 1}</td>`;
+            html += `<tr><td>第 ${g + 1} 組</td>`;
             for (let r = 1; r <= 4; r++) {
                 const rev = (state.rounds[r] && state.rounds[r].groupResults) ? state.rounds[r].groupResults[g].revenue : 0;
                 total += rev;
@@ -553,8 +586,7 @@
         }
         html += '</tbody></table></div>';
 
-        // Restart button
-        html += '<div class="text-center mt-1"><button class="btn btn-primary btn-lg" id="btn-restart">Start New Game</button></div>';
+        html += '<div class="text-center mt-1"><button class="btn btn-primary btn-lg" id="btn-restart">重新開始遊戲</button></div>';
 
         $('#final-results').innerHTML = html;
         $('#btn-restart').onclick = () => {
@@ -572,13 +604,10 @@
         }
     }
 
-    // ───── Navigation Clicks ─────
+    // ───── Navigation ─────
     function initNavigation() {
         $$('.nav-btn').forEach(btn => {
-            btn.onclick = () => {
-                const step = btn.dataset.step;
-                showStep(step);
-            };
+            btn.onclick = () => showStep(btn.dataset.step);
         });
     }
 

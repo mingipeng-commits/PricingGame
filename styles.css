@@ -495,6 +495,48 @@ body {
 }
 .row-highlight { animation: highlightRow 1.5s ease-out; }
 
+/* Draw mode options */
+.draw-mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+    margin-top: .5rem;
+}
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 400;
+    font-size: .9rem;
+    cursor: pointer;
+}
+.radio-label input[type="radio"] {
+    width: auto;
+    margin: 0;
+}
+
+/* Manual draw input */
+.manual-draw-area {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    margin-bottom: .5rem;
+}
+.manual-draw-area input {
+    width: 150px;
+    padding: .5rem .75rem;
+    border: 2px solid var(--warning);
+    border-radius: var(--radius);
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+}
+.manual-draw-area input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-light);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .header h1 { font-size: 1.3rem; }

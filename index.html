@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pricing Game - Revenue Management Simulation</title>
+    <title>Pricing Game - 收益管理模擬遊戲</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,69 +11,82 @@
         <!-- Header -->
         <header class="header">
             <h1>Pricing Game</h1>
-            <p class="subtitle">Revenue Management Simulation</p>
+            <p class="subtitle">收益管理模擬遊戲</p>
             <div id="nav-bar" class="nav-bar hidden">
-                <button class="nav-btn" data-step="setup">Setup</button>
-                <button class="nav-btn" data-step="wtp">WTP</button>
-                <button class="nav-btn" data-step="round1">R1</button>
-                <button class="nav-btn" data-step="round2">R2</button>
-                <button class="nav-btn" data-step="round3">R3</button>
-                <button class="nav-btn" data-step="round4">R4</button>
-                <button class="nav-btn" data-step="final">Final</button>
+                <button class="nav-btn" data-step="setup">設定</button>
+                <button class="nav-btn" data-step="wtp">願付價格</button>
+                <button class="nav-btn" data-step="round1">第一輪</button>
+                <button class="nav-btn" data-step="round2">第二輪</button>
+                <button class="nav-btn" data-step="round3">第三輪</button>
+                <button class="nav-btn" data-step="round4">決勝輪</button>
+                <button class="nav-btn" data-step="final">最終結果</button>
             </div>
         </header>
 
         <!-- Setup Phase -->
         <section id="step-setup" class="step active">
             <div class="card">
-                <h2>Game Setup</h2>
-                <p class="card-desc">Configure the game parameters before starting.</p>
+                <h2>遊戲設定</h2>
+                <p class="card-desc">請在開始前設定遊戲參數。</p>
                 <div class="form-grid">
                     <div class="form-group">
-                        <label for="numStudents">Number of Students</label>
+                        <label for="numStudents">參加人數</label>
                         <input type="number" id="numStudents" value="40" min="2" max="200">
                     </div>
                     <div class="form-group">
-                        <label for="numGroups">Number of Groups</label>
+                        <label for="numGroups">分組數量</label>
                         <input type="number" id="numGroups" value="8" min="2" max="20">
                     </div>
                     <div class="form-group">
-                        <label for="numCustomers">Customers per Round</label>
+                        <label for="numCustomers">每輪顧客數</label>
                         <input type="number" id="numCustomers" value="20" min="5" max="100">
                     </div>
                     <div class="form-group">
-                        <label for="repricingInterval">Repricing Interval (R3 &amp; R4)</label>
+                        <label for="repricingInterval">改價間隔（第三、四輪）</label>
                         <input type="number" id="repricingInterval" value="5" min="1" max="50">
                     </div>
                     <div class="form-group">
-                        <label for="supplyLimit">Supply Limit (R4)</label>
+                        <label for="supplyLimit">庫存上限（第四輪）</label>
                         <input type="number" id="supplyLimit" value="7" min="1" max="50">
                     </div>
                     <div class="form-group">
-                        <label for="productName">Product Name</label>
-                        <input type="text" id="productName" value="Travel Package" placeholder="e.g. Travel Package">
+                        <label for="productName">產品名稱</label>
+                        <input type="text" id="productName" value="旅遊行程" placeholder="例如：旅遊行程">
                     </div>
                 </div>
                 <div class="info-box">
-                    <strong>Students per Group:</strong> <span id="studentsPerGroup">5</span>
+                    <strong>每組人數：</strong> <span id="studentsPerGroup">5</span>
                 </div>
-                <button class="btn btn-primary btn-lg" id="btn-start-game">Start Game</button>
+                <div class="info-box" style="margin-top:.75rem; border-left-color: var(--warning);">
+                    <strong>抽籤模式：</strong>
+                    <div class="draw-mode-options">
+                        <label class="radio-label">
+                            <input type="radio" name="drawMode" value="auto" checked>
+                            電腦自動抽籤（從願付價格池中隨機抽取）
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="drawMode" value="manual">
+                            手動輸入（老師從紙箱抽出後輸入價格）
+                        </label>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-lg" id="btn-start-game">開始遊戲</button>
             </div>
         </section>
 
         <!-- WTP Collection Phase -->
         <section id="step-wtp" class="step">
             <div class="card">
-                <h2>Customer Willingness To Pay (WTP)</h2>
-                <p class="card-desc">Enter each student's willingness-to-pay price for "<span id="wtp-product-name"></span>".<br>
-                Each student writes their price independently without discussion.</p>
+                <h2>顧客願付價格（WTP）</h2>
+                <p class="card-desc">請輸入每位同學對「<span id="wtp-product-name"></span>」的願付價格。<br>
+                每位同學獨立思考，不可討論，將價格寫在便利貼上。</p>
                 <div class="wtp-input-area">
                     <div class="wtp-quick-entry">
-                        <input type="number" id="wtp-input" placeholder="Enter price..." min="0" step="any">
-                        <button class="btn btn-primary" id="btn-add-wtp">Add</button>
+                        <input type="number" id="wtp-input" placeholder="輸入價格..." min="0" step="any">
+                        <button class="btn btn-primary" id="btn-add-wtp">新增</button>
                     </div>
                     <div class="wtp-progress">
-                        <span id="wtp-count">0</span> / <span id="wtp-total">40</span> prices collected
+                        已收集 <span id="wtp-count">0</span> / <span id="wtp-total">40</span> 個價格
                         <div class="progress-bar">
                             <div class="progress-fill" id="wtp-progress-fill"></div>
                         </div>
@@ -81,14 +94,14 @@
                     <div id="wtp-tags" class="wtp-tags"></div>
                 </div>
                 <div class="wtp-bulk-area">
-                    <h3>Bulk Entry</h3>
-                    <p class="hint">Paste or type multiple prices separated by commas, spaces, or new lines.</p>
-                    <textarea id="wtp-bulk" rows="3" placeholder="e.g. 100, 150, 200, 250..."></textarea>
-                    <button class="btn btn-secondary" id="btn-bulk-wtp">Add All</button>
+                    <h3>批次輸入</h3>
+                    <p class="hint">可貼上或輸入多個價格，以逗號、空格或換行分隔。</p>
+                    <textarea id="wtp-bulk" rows="3" placeholder="例如：100, 150, 200, 250..."></textarea>
+                    <button class="btn btn-secondary" id="btn-bulk-wtp">全部新增</button>
                 </div>
                 <div class="wtp-actions">
-                    <button class="btn btn-outline" id="btn-random-wtp">Generate Random WTP</button>
-                    <button class="btn btn-primary btn-lg" id="btn-wtp-done" disabled>Proceed to Round 1</button>
+                    <button class="btn btn-outline" id="btn-random-wtp">隨機產生願付價格</button>
+                    <button class="btn btn-primary btn-lg" id="btn-wtp-done" disabled>進入第一輪</button>
                 </div>
             </div>
         </section>
@@ -110,7 +123,7 @@
         <!-- Final Results -->
         <section id="step-final" class="step">
             <div class="card">
-                <h2>Final Results &amp; Rankings</h2>
+                <h2>最終結果與排名</h2>
                 <div id="final-results"></div>
             </div>
         </section>
