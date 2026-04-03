@@ -81,7 +81,7 @@ body {
 }
 
 /* ===== Steps ===== */
-.step { display: none; padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+.step { display: none; padding: 1.5rem 2rem; max-width: 100%; margin: 0 auto; }
 .step.active { display: block; }
 
 /* ===== Card ===== */
@@ -316,17 +316,21 @@ body {
     margin-bottom: 1.5rem;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
+    min-width: 0;
 }
 .round-table {
     width: 100%;
     border-collapse: collapse;
     font-size: .85rem;
     white-space: nowrap;
+    table-layout: fixed;
 }
 .round-table th, .round-table td {
-    padding: .5rem .7rem;
+    padding: .4rem .5rem;
     text-align: center;
     border: 1px solid var(--gray-200);
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .round-table thead th {
     background: var(--gray-800);
@@ -470,8 +474,8 @@ body {
     background: #fff;
     border-radius: var(--radius);
     padding: 2rem;
-    max-width: 700px;
-    width: 90%;
+    max-width: 900px;
+    width: 95%;
     max-height: 80vh;
     overflow-y: auto;
     box-shadow: var(--shadow-lg);
@@ -494,6 +498,31 @@ body {
     100% { background: transparent; }
 }
 .row-highlight { animation: highlightRow 1.5s ease-out; }
+
+/* Repricing pause banner */
+.reprice-pause-banner {
+    background: var(--warning-light);
+    border: 2px solid var(--warning);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.reprice-pause-banner .pause-info {
+    font-weight: 600;
+    color: #92400e;
+    font-size: .95rem;
+}
+.reprice-pause-banner .pause-hint {
+    font-size: .8rem;
+    color: var(--gray-600);
+    margin-top: .2rem;
+    font-weight: 400;
+}
 
 /* Draw mode options */
 .draw-mode-options {

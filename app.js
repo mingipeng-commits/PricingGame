@@ -23,6 +23,12 @@
     const $ = (sel, ctx) => (ctx || document).querySelector(sel);
     const $$ = (sel, ctx) => [...(ctx || document).querySelectorAll(sel)];
 
+    // Thousands separator formatter
+    function fmt(n) {
+        if (n == null || isNaN(n)) return '0';
+        return Number(n).toLocaleString('en-US');
+    }
+
     function showStep(name) {
         $$('.step').forEach(s => s.classList.remove('active'));
         const el = $(`#step-${name}`);
@@ -112,7 +118,7 @@
         state.wtpPrices.forEach((p, i) => {
             const tag = document.createElement('span');
             tag.className = 'wtp-tag';
-            tag.innerHTML = `$${p} <span class="remove" data-idx="${i}">&times;</span>`;
+            tag.innerHTML = `$${fmt(p)} <span class="remove" data-idx="${i}">&times;</span>`;
             container.appendChild(tag);
         });
         container.querySelectorAll('.remove').forEach(btn => {
@@ -143,6 +149,8 @@
             drawIndex: 0,
             currentSegment: 0,
             allDrawn: false,
+            paused: false,          // for repricing pause
+            pendingWtp: null,       // WTP waiting to be processed after reprice
         };
         state.rounds[roundNum] = roundData;
 
@@ -176,7 +184,7 @@
                 <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
             </div>
             <div id="r${roundNum}-game-area" class="hidden">
-                <div class="draw-controls">
+                <div class="draw-controls" id="r${roundNum}-draw-controls">
                     ${isManual ? `
                         <div class="manual-draw-area">
                             <input type="number" id="r${roundNum}-manual-input" placeholder="輸入抽出的價格" min="0" step="any">
@@ -188,6 +196,7 @@
                     `}
                     <span class="draw-status" id="r${roundNum}-draw-status">已抽取 0 / ${numCustomers} 位</span>
                 </div>
+                <div id="r${roundNum}-reprice-banner"></div>
                 <div class="round-table-wrap">
                     <table class="round-table" id="r${roundNum}-table">
                         <thead id="r${roundNum}-thead"></thead>
@@ -251,7 +260,6 @@
             addPricingRow(roundNum, seg, prices, false);
             $(`#r${roundNum}-game-area`).classList.remove('hidden');
 
-            // Focus manual input if manual mode
             if (isManual) {
                 const mi = $(`#r${roundNum}-manual-input`);
                 if (mi) mi.focus();
@@ -261,6 +269,8 @@
         // Draw handlers
         if (isManual) {
             const manualConfirm = () => {
+                const rd = state.rounds[roundNum];
+                if (rd.paused) return; // blocked during reprice pause
                 const mi = $(`#r${roundNum}-manual-input`);
                 const v = parseFloat(mi.value);
                 if (isNaN(v) || v < 0) { alert('請輸入有效的顧客願付價格。'); return; }
@@ -268,7 +278,6 @@
                 mi.focus();
                 processCustomer(roundNum, v, groupState, numSegments, wtpPool);
             };
-            // Defer event binding until after DOM is created
             setTimeout(() => {
                 const btn = $(`#r${roundNum}-manual-draw`);
                 const input = $(`#r${roundNum}-manual-input`);
@@ -278,7 +287,7 @@
         } else {
             $(`#r${roundNum}-draw-one`).onclick = () => {
                 const rd = state.rounds[roundNum];
-                if (rd.allDrawn || rd.drawIndex >= numCustomers) return;
+                if (rd.paused || rd.allDrawn || rd.drawIndex >= numCustomers) return;
                 const wtp = wtpPool[rd.drawIndex];
                 processCustomer(roundNum, wtp, groupState, numSegments, wtpPool);
             };
@@ -286,16 +295,8 @@
                 const delay = 150;
                 const interval = setInterval(() => {
                     const rd = state.rounds[roundNum];
-                    if (rd.allDrawn) { clearInterval(interval); return; }
+                    if (rd.allDrawn || rd.paused) { clearInterval(interval); return; }
                     if (rd.drawIndex >= numCustomers) { clearInterval(interval); return; }
-                    // Check if repricing is needed - if so, stop auto
-                    const canR = roundNum >= 3;
-                    const di = rd.drawIndex;
-                    if (canR && di > 0 && di % repricingInterval === 0 && !rd.groupPrices[Math.floor(di / repricingInterval)]) {
-                        clearInterval(interval);
-                        processCustomer(roundNum, wtpPool[di], groupState, numSegments, wtpPool);
-                        return;
-                    }
                     const wtp = wtpPool[rd.drawIndex];
                     processCustomer(roundNum, wtp, groupState, numSegments, wtpPool);
                 }, delay);
@@ -325,7 +326,7 @@
         let label = isRepricing ? `改價 #${segment + 1}` : (segment === 0 ? '初始定價' : `定價 #${segment + 1}`);
         let cells = `<td>${label}</td><td>-</td>`;
         for (let g = 0; g < numGroups; g++) {
-            cells += `<td>$${prices[g]}</td>`;
+            cells += `<td>$${fmt(prices[g])}</td>`;
         }
         tr.innerHTML = cells;
         tbody.appendChild(tr);
@@ -337,7 +338,7 @@
         const canReprice = roundNum >= 3;
         const hasSupply = roundNum === 4;
 
-        if (rd.allDrawn) return;
+        if (rd.allDrawn || rd.paused) return;
 
         const drawIdx = rd.drawIndex;
         if (drawIdx >= numCustomers) {
@@ -350,7 +351,10 @@
         if (canReprice && drawIdx > 0 && drawIdx % repricingInterval === 0) {
             const nextSeg = Math.floor(drawIdx / repricingInterval);
             if (!rd.groupPrices[nextSeg]) {
-                showRepricingModal(roundNum, nextSeg, groupState, wtpPool, numSegments, wtp);
+                // PAUSE: show banner with button instead of auto-opening modal
+                rd.paused = true;
+                rd.pendingWtp = wtp;
+                showRepricePauseBanner(roundNum, nextSeg, groupState, wtpPool, numSegments);
                 return;
             }
         }
@@ -363,7 +367,7 @@
         const tbody = $(`#r${roundNum}-tbody`);
         const tr = document.createElement('tr');
         tr.className = 'row-highlight animate-in';
-        let cells = `<td>${drawIdx + 1}</td><td><strong>$${wtp}</strong></td>`;
+        let cells = `<td>${drawIdx + 1}</td><td><strong>$${fmt(wtp)}</strong></td>`;
         for (let g = 0; g < numGroups; g++) {
             const gPrice = prices[g];
             if (hasSupply && groupState[g].soldOut) {
@@ -381,9 +385,9 @@
                     if (groupState[g].soldCount >= supplyLimit) {
                         groupState[g].soldOut = true;
                     }
-                    cells += `<td class="cell-deal">$${gPrice} (第${soldNum}筆)</td>`;
+                    cells += `<td class="cell-deal">$${fmt(gPrice)} (第${soldNum}筆)</td>`;
                 } else {
-                    cells += `<td class="cell-deal">$${gPrice}</td>`;
+                    cells += `<td class="cell-deal">$${fmt(gPrice)}</td>`;
                 }
             } else {
                 cells += `<td class="cell-no-deal">-</td>`;
@@ -401,6 +405,58 @@
         }
     }
 
+    // Show a pause banner with performance summary + button to open repricing dialog
+    function showRepricePauseBanner(roundNum, segment, groupState, wtpPool, numSegments) {
+        const { numGroups, repricingInterval } = state.config;
+        const rd = state.rounds[roundNum];
+        const bannerEl = $(`#r${roundNum}-reprice-banner`);
+
+        // Build mini performance summary
+        let perfHtml = '<table class="summary-table" style="font-size:.8rem;margin-top:.5rem"><thead><tr>';
+        perfHtml += '<th>組別</th><th>成交數</th><th>營收</th>';
+        if (roundNum === 4) perfHtml += '<th>已售</th>';
+        perfHtml += '</tr></thead><tbody>';
+        for (let g = 0; g < numGroups; g++) {
+            const info = groupState[g];
+            perfHtml += `<tr><td>第 ${g + 1} 組</td><td>${info.deals}</td><td>$${fmt(info.revenue)}</td>`;
+            if (roundNum === 4) perfHtml += `<td>${info.soldCount}/${state.config.supplyLimit}</td>`;
+            perfHtml += '</tr>';
+        }
+        perfHtml += '</tbody></table>';
+
+        bannerEl.innerHTML = `
+        <div class="reprice-pause-banner">
+            <div>
+                <div class="pause-info">已完成第 ${segment * repricingInterval} 位顧客 — 重新定價機會（第 ${segment + 1} / ${numSegments} 段）</div>
+                <div class="pause-hint">請各組檢視目前績效後，再點擊「開始重新定價」進行新一輪定價討論。</div>
+            </div>
+            <button class="btn btn-warning btn-lg" id="r${roundNum}-open-reprice">開始重新定價</button>
+        </div>
+        ${perfHtml}`;
+
+        // Disable draw controls
+        setDrawControlsDisabled(roundNum, true);
+
+        $(`#r${roundNum}-open-reprice`).onclick = () => {
+            showRepricingModal(roundNum, segment, groupState, wtpPool, numSegments, rd.pendingWtp);
+        };
+    }
+
+    function setDrawControlsDisabled(roundNum, disabled) {
+        const { drawMode } = state.config;
+        if (drawMode === 'manual') {
+            const mi = $(`#r${roundNum}-manual-input`);
+            const mb = $(`#r${roundNum}-manual-draw`);
+            if (mi) mi.disabled = disabled;
+            if (mb) mb.disabled = disabled;
+        } else {
+            const d1 = $(`#r${roundNum}-draw-one`);
+            const d2 = $(`#r${roundNum}-draw-all`);
+            if (d1) d1.disabled = disabled;
+            if (d2) d2.disabled = disabled;
+        }
+    }
+
     function showRepricingModal(roundNum, segment, groupState, wtpPool, numSegments, pendingWtp) {
         const { numGroups } = state.config;
         const rd = state.rounds[roundNum];
@@ -412,7 +468,7 @@
         for (let g = 0; g < numGroups; g++) {
             const prevP = prevPrices[g];
             const info = groupState[g];
-            let extra = `成交：${info.deals} 筆，營收：$${info.revenue}`;
+            let extra = `成交：${info.deals} 筆，營收：$${fmt(info.revenue)}`;
             if (roundNum === 4) extra += `，已售：${info.soldCount}/${state.config.supplyLimit}`;
             inputsHtml += `
                 <div class="pricing-input-card">
@@ -425,8 +481,8 @@
 
         overlay.innerHTML = `
         <div class="modal">
-            <h3>重新定價機會 - 第 ${segment + 1} / ${numSegments} 段</h3>
-            <p style="margin-bottom:1rem;color:var(--gray-600)">檢視目前績效，為接下來的 ${state.config.repricingInterval} 位顧客設定新價格。</p>
+            <h3>重新定價 - 第 ${segment + 1} / ${numSegments} 段</h3>
+            <p style="margin-bottom:1rem;color:var(--gray-600)">請各組討論後輸入新定價，接下來將抽取 ${state.config.repricingInterval} 位顧客。</p>
             ${inputsHtml}
             <div class="text-center mt-1">
                 <button class="btn btn-warning btn-lg" id="rp-confirm-${roundNum}-${segment}">確認新定價</button>
@@ -445,7 +501,15 @@
             if (!valid) { alert('請輸入有效的定價。'); return; }
             rd.groupPrices[segment] = prices;
             rd.currentSegment = segment;
+            rd.paused = false;
             overlay.remove();
+
+            // Clear the pause banner
+            $(`#r${roundNum}-reprice-banner`).innerHTML = '';
+
+            // Re-enable draw controls
+            setDrawControlsDisabled(roundNum, false);
+
             addPricingRow(roundNum, segment, prices, true);
             // Process the pending customer
             processCustomer(roundNum, pendingWtp, groupState, numSegments, wtpPool);
@@ -453,18 +517,9 @@
     }
 
     function finishRound(roundNum, groupState) {
-        const { numGroups, numCustomers, drawMode } = state.config;
+        const { numGroups, numCustomers } = state.config;
 
-        // Disable draw buttons
-        if (drawMode === 'manual') {
-            const mi = $(`#r${roundNum}-manual-input`);
-            const mb = $(`#r${roundNum}-manual-draw`);
-            if (mi) mi.disabled = true;
-            if (mb) mb.disabled = true;
-        } else {
-            $(`#r${roundNum}-draw-one`).disabled = true;
-            $(`#r${roundNum}-draw-all`).disabled = true;
-        }
+        setDrawControlsDisabled(roundNum, true);
 
         state.rounds[roundNum].groupResults = groupState.map((gs, g) => ({
             group: g + 1,
@@ -489,8 +544,8 @@
                 <td>第 ${r.group} 組</td>
                 <td>${r.deals}</td>
                 <td>${(r.ratio * 100).toFixed(1)}%</td>
-                <td>$${r.revenue.toFixed(0)}</td>
-                <td>$${r.avgDealPrice.toFixed(1)}</td>
+                <td>$${fmt(r.revenue)}</td>
+                <td>$${fmt(Math.round(r.avgDealPrice))}</td>
             </tr>`;
         });
         summaryHtml += '</tbody></table></div>';
@@ -504,12 +559,13 @@
             summaryHtml += '</tr></thead><tbody>';
             cSorted.forEach((r, i) => {
                 const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
+                const avg = r.totalDeals > 0 ? Math.round(r.totalRevenue / r.totalDeals) : 0;
                 summaryHtml += `<tr class="${rankClass}">
                     <td>${i + 1}</td>
                     <td>第 ${r.group} 組</td>
                     <td>${r.totalDeals}</td>
-                    <td>$${r.totalRevenue.toFixed(0)}</td>
-                    <td>$${r.totalDeals > 0 ? (r.totalRevenue / r.totalDeals).toFixed(1) : '0'}</td>
+                    <td>$${fmt(r.totalRevenue)}</td>
+                    <td>$${fmt(avg)}</td>
                 </tr>`;
             });
             summaryHtml += '</tbody></table></div>';
@@ -548,9 +604,9 @@
 
         if (sorted.length >= 3) {
             html += '<div class="podium">';
-            html += `<div class="podium-item podium-2"><div class="podium-rank">第二名</div><div class="podium-name">第 ${sorted[1].group} 組</div><div class="podium-amount">$${sorted[1].totalRevenue.toFixed(0)}</div></div>`;
-            html += `<div class="podium-item podium-1"><div class="podium-rank">第一名</div><div class="podium-name">第 ${sorted[0].group} 組</div><div class="podium-amount">$${sorted[0].totalRevenue.toFixed(0)}</div></div>`;
-            html += `<div class="podium-item podium-3"><div class="podium-rank">第三名</div><div class="podium-name">第 ${sorted[2].group} 組</div><div class="podium-amount">$${sorted[2].totalRevenue.toFixed(0)}</div></div>`;
+            html += `<div class="podium-item podium-2"><div class="podium-rank">第二名</div><div class="podium-name">第 ${sorted[1].group} 組</div><div class="podium-amount">$${fmt(sorted[1].totalRevenue)}</div></div>`;
+            html += `<div class="podium-item podium-1"><div class="podium-rank">第一名</div><div class="podium-name">第 ${sorted[0].group} 組</div><div class="podium-amount">$${fmt(sorted[0].totalRevenue)}</div></div>`;
+            html += `<div class="podium-item podium-3"><div class="podium-rank">第三名</div><div class="podium-name">第 ${sorted[2].group} 組</div><div class="podium-amount">$${fmt(sorted[2].totalRevenue)}</div></div>`;
             html += '</div>';
         }
 
@@ -559,13 +615,13 @@
         html += '</tr></thead><tbody>';
         sorted.forEach((r, i) => {
             const rankClass = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-            const avg = r.totalDeals > 0 ? (r.totalRevenue / r.totalDeals).toFixed(1) : '0';
+            const avg = r.totalDeals > 0 ? Math.round(r.totalRevenue / r.totalDeals) : 0;
             html += `<tr class="${rankClass}">
                 <td>${i + 1}</td>
                 <td>第 ${r.group} 組</td>
                 <td>${r.totalDeals}</td>
-                <td>$${r.totalRevenue.toFixed(0)}</td>
-                <td>$${avg}</td>
+                <td>$${fmt(r.totalRevenue)}</td>
+                <td>$${fmt(avg)}</td>
             </tr>`;
         });
         html += '</tbody></table></div>';
@@ -580,9 +636,9 @@
             for (let r = 1; r <= 4; r++) {
                 const rev = (state.rounds[r] && state.rounds[r].groupResults) ? state.rounds[r].groupResults[g].revenue : 0;
                 total += rev;
-                html += `<td>$${rev.toFixed(0)}</td>`;
+                html += `<td>$${fmt(rev)}</td>`;
             }
-            html += `<td><strong>$${total.toFixed(0)}</strong></td></tr>`;
+            html += `<td><strong>$${fmt(total)}</strong></td></tr>`;
         }
         html += '</tbody></table></div>';
 
