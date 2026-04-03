@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing Game - Revenue Management Simulation</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <h1>Pricing Game</h1>
+            <p class="subtitle">Revenue Management Simulation</p>
+            <div id="nav-bar" class="nav-bar hidden">
+                <button class="nav-btn" data-step="setup">Setup</button>
+                <button class="nav-btn" data-step="wtp">WTP</button>
+                <button class="nav-btn" data-step="round1">R1</button>
+                <button class="nav-btn" data-step="round2">R2</button>
+                <button class="nav-btn" data-step="round3">R3</button>
+                <button class="nav-btn" data-step="round4">R4</button>
+                <button class="nav-btn" data-step="final">Final</button>
+            </div>
+        </header>
+
+        <!-- Setup Phase -->
+        <section id="step-setup" class="step active">
+            <div class="card">
+                <h2>Game Setup</h2>
+                <p class="card-desc">Configure the game parameters before starting.</p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="numStudents">Number of Students</label>
+                        <input type="number" id="numStudents" value="40" min="2" max="200">
+                    </div>
+                    <div class="form-group">
+                        <label for="numGroups">Number of Groups</label>
+                        <input type="number" id="numGroups" value="8" min="2" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="numCustomers">Customers per Round</label>
+                        <input type="number" id="numCustomers" value="20" min="5" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label for="repricingInterval">Repricing Interval (R3 &amp; R4)</label>
+                        <input type="number" id="repricingInterval" value="5" min="1" max="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="supplyLimit">Supply Limit (R4)</label>
+                        <input type="number" id="supplyLimit" value="7" min="1" max="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="productName">Product Name</label>
+                        <input type="text" id="productName" value="Travel Package" placeholder="e.g. Travel Package">
+                    </div>
+                </div>
+                <div class="info-box">
+                    <strong>Students per Group:</strong> <span id="studentsPerGroup">5</span>
+                </div>
+                <button class="btn btn-primary btn-lg" id="btn-start-game">Start Game</button>
+            </div>
+        </section>
+
+        <!-- WTP Collection Phase -->
+        <section id="step-wtp" class="step">
+            <div class="card">
+                <h2>Customer Willingness To Pay (WTP)</h2>
+                <p class="card-desc">Enter each student's willingness-to-pay price for "<span id="wtp-product-name"></span>".<br>
+                Each student writes their price independently without discussion.</p>
+                <div class="wtp-input-area">
+                    <div class="wtp-quick-entry">
+                        <input type="number" id="wtp-input" placeholder="Enter price..." min="0" step="any">
+                        <button class="btn btn-primary" id="btn-add-wtp">Add</button>
+                    </div>
+                    <div class="wtp-progress">
+                        <span id="wtp-count">0</span> / <span id="wtp-total">40</span> prices collected
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="wtp-progress-fill"></div>
+                        </div>
+                    </div>
+                    <div id="wtp-tags" class="wtp-tags"></div>
+                </div>
+                <div class="wtp-bulk-area">
+                    <h3>Bulk Entry</h3>
+                    <p class="hint">Paste or type multiple prices separated by commas, spaces, or new lines.</p>
+                    <textarea id="wtp-bulk" rows="3" placeholder="e.g. 100, 150, 200, 250..."></textarea>
+                    <button class="btn btn-secondary" id="btn-bulk-wtp">Add All</button>
+                </div>
+                <div class="wtp-actions">
+                    <button class="btn btn-outline" id="btn-random-wtp">Generate Random WTP</button>
+                    <button class="btn btn-primary btn-lg" id="btn-wtp-done" disabled>Proceed to Round 1</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Round Template (used for rounds 1-4) -->
+        <section id="step-round1" class="step">
+            <div class="round-container" data-round="1"></div>
+        </section>
+        <section id="step-round2" class="step">
+            <div class="round-container" data-round="2"></div>
+        </section>
+        <section id="step-round3" class="step">
+            <div class="round-container" data-round="3"></div>
+        </section>
+        <section id="step-round4" class="step">
+            <div class="round-container" data-round="4"></div>
+        </section>
+
+        <!-- Final Results -->
+        <section id="step-final" class="step">
+            <div class="card">
+                <h2>Final Results &amp; Rankings</h2>
+                <div id="final-results"></div>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
