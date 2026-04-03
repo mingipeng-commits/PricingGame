@@ -2,6 +2,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { exec } = require('child_process');
 
 const PORT = 3000;
 
@@ -128,4 +129,17 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`  ║  Mobile:   http://${ip}:${PORT}/mobile.html ║`);
     console.log('  ╚══════════════════════════════════════════╝');
     console.log('');
+
+    // Auto-open browser unless --no-open flag is passed
+    if (!process.argv.includes('--no-open')) {
+        const url = `http://localhost:${PORT}`;
+        const cmds = { darwin: `open "${url}"`, win32: `start "${url}"`, linux: `xdg-open "${url}"` };
+        const cmd = cmds[process.platform];
+        if (cmd) {
+            exec(cmd, (err) => {
+                if (err) console.log(`  請手動開啟瀏覽器：${url}`);
+                else console.log('  瀏覽器已自動開啟');
+            });
+        }
+    }
 });
