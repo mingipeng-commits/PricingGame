@@ -510,7 +510,58 @@ body {
     color: var(--warning);
 }
 
-/* QR Code Section */
+/* QR Code Section - compact upper-right corner layout for rounds */
+.qr-corner {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: #fff;
+    border: 2px solid var(--primary-light);
+    border-radius: var(--radius);
+    padding: .5rem;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    z-index: 10;
+    max-width: 160px;
+}
+.qr-corner .qr-img {
+    width: 120px;
+    height: 120px;
+    border: 2px solid var(--gray-200);
+    border-radius: 4px;
+    display: block;
+    margin: 0 auto;
+}
+.qr-corner .qr-label {
+    font-size: .65rem;
+    color: var(--gray-500);
+    margin-top: .3rem;
+    line-height: 1.3;
+}
+.qr-corner .qr-url {
+    font-size: .55rem;
+    color: var(--gray-400);
+    word-break: break-all;
+    font-family: monospace;
+    margin-top: .15rem;
+}
+.card { position: relative; }
+
+/* QR submit status chips below the QR corner */
+.qr-corner .submit-status-grid {
+    display: flex;
+    gap: .25rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: .35rem;
+}
+.qr-corner .status-chip {
+    padding: .15rem .35rem;
+    font-size: .6rem;
+    min-width: auto;
+}
+
+/* QR Section - full width for WTP page */
 .qr-section {
     background: var(--gray-50);
     border: 2px dashed var(--primary);

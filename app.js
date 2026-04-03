@@ -102,20 +102,11 @@
                 chips += `<span class="status-chip" id="qr-chip-${roundNum}-${segment}-${g}">第${g}組</span>`;
             }
             return `
-            <div class="qr-section" id="r${roundNum}-qr-section">
-                <h3>各組代表請掃描 QR Code 輸入定價</h3>
-                <div class="qr-display">
-                    <img class="qr-img" src="${this.getQRImageUrl(url)}" alt="QR Code">
-                    <div class="qr-info">
-                        <div style="font-weight:600;font-size:.95rem;margin-bottom:.3rem">${roundName}</div>
-                        <div style="font-size:.85rem;color:var(--gray-500)">掃描後選擇組別並輸入定價</div>
-                        <div class="qr-url">${url}</div>
-                        <div class="submit-status">
-                            <div style="font-size:.8rem;color:var(--gray-500);margin-bottom:.3rem">送出狀態：</div>
-                            <div class="submit-status-grid">${chips}</div>
-                        </div>
-                    </div>
-                </div>
+            <div class="qr-corner" id="r${roundNum}-qr-section">
+                <img class="qr-img" src="${this.getQRImageUrl(url)}" alt="QR Code">
+                <div class="qr-label">掃碼輸入定價</div>
+                <div class="qr-url">${url}</div>
+                <div class="submit-status-grid">${chips}</div>
             </div>`;
         },
 
@@ -367,6 +358,7 @@
 
         let html = `
         <div class="card">
+            <div id="r${roundNum}-qr-area"></div>
             <div class="round-header">
                 <h2>${roundNames[roundNum]}</h2>
                 <div>
@@ -384,7 +376,6 @@
                     <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
                     <button class="btn btn-outline" id="r${roundNum}-random-prices">隨機填入定價（QC 測試用）</button>
                 </div>
-                <div id="r${roundNum}-qr-area"></div>
             </div>
             <div id="r${roundNum}-game-area" class="hidden">
                 <div class="draw-controls" id="r${roundNum}-draw-controls">
@@ -732,10 +723,10 @@
         }
 
         overlay.innerHTML = `
-        <div class="modal">
+        <div class="modal" style="position:relative">
+            ${modalQR}
             <h3>重新定價 - 第 ${segment + 1} / ${numSegments} 段</h3>
             <p style="margin-bottom:1rem;color:var(--gray-600)">請各組討論後輸入新定價，接下來將抽取 ${state.config.repricingInterval} 位顧客。</p>
-            ${modalQR}
             ${inputsHtml}
             <div class="text-center mt-1" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
                 <button class="btn btn-outline" id="rp-random-${roundNum}-${segment}">隨機填入定價（QC）</button>
