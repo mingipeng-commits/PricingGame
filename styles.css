@@ -510,6 +510,69 @@ body {
     color: var(--warning);
 }
 
+/* QR Code Section */
+.qr-section {
+    background: var(--gray-50);
+    border: 2px dashed var(--primary);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+.qr-section h3 {
+    font-size: 1rem;
+    color: var(--primary-dark);
+    margin-bottom: .75rem;
+}
+.qr-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.qr-img {
+    width: 180px;
+    height: 180px;
+    border: 4px solid #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+}
+.qr-info { text-align: left; }
+.qr-url {
+    font-size: .8rem;
+    color: var(--gray-500);
+    word-break: break-all;
+    margin-top: .3rem;
+    font-family: monospace;
+}
+.submit-status {
+    margin-top: .75rem;
+}
+.submit-status-grid {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: .5rem;
+}
+.status-chip {
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 600;
+    border: 2px solid var(--gray-300);
+    color: var(--gray-400);
+    background: #fff;
+    min-width: 70px;
+    text-align: center;
+}
+.status-chip.submitted {
+    border-color: var(--success);
+    background: var(--success-light);
+    color: var(--success);
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }

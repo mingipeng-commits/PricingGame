@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pricing Game - 組別定價</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #2563eb; --primary-dark: #1d4ed8; --primary-light: #dbeafe;
+            --success: #16a34a; --success-light: #dcfce7;
+            --danger: #dc2626; --warning: #f59e0b; --warning-light: #fef3c7;
+            --gray-100: #f3f4f6; --gray-200: #e5e7eb; --gray-300: #d1d5db;
+            --gray-500: #6b7280; --gray-700: #374151; --gray-800: #1f2937;
+            --radius: 10px;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--gray-100); color: var(--gray-800);
+            min-height: 100vh; padding: 0;
+        }
+        .m-header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: #fff; padding: 1.25rem 1rem; text-align: center;
+        }
+        .m-header h1 { font-size: 1.2rem; font-weight: 700; }
+        .m-header .round-info {
+            margin-top: .4rem; font-size: .9rem; opacity: .9;
+            background: rgba(255,255,255,.15); padding: .3rem .8rem;
+            border-radius: 999px; display: inline-block;
+        }
+        .m-body { padding: 1.25rem; max-width: 420px; margin: 0 auto; }
+        .m-card {
+            background: #fff; border-radius: var(--radius); padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: 1rem;
+        }
+        .m-card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--gray-700); }
+
+        /* Group selector */
+        .group-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+            margin-bottom: 1rem;
+        }
+        .group-btn {
+            padding: .7rem .5rem; border: 2px solid var(--gray-300);
+            border-radius: var(--radius); background: #fff; font-size: 1rem;
+            font-weight: 600; cursor: pointer; text-align: center; transition: all .2s;
+        }
+        .group-btn:active, .group-btn.selected {
+            background: var(--primary); color: #fff; border-color: var(--primary);
+        }
+        .group-btn.disabled {
+            opacity: .35; cursor: not-allowed;
+            background: var(--gray-200); border-color: var(--gray-200);
+        }
+
+        /* Price input */
+        .price-input-wrap { position: relative; margin-bottom: 1rem; }
+        .price-input-wrap .dollar {
+            position: absolute; left: 1rem; top: 50%; transform: translateY(-50%);
+            font-size: 1.3rem; font-weight: 700; color: var(--gray-500);
+        }
+        .price-input {
+            width: 100%; padding: 1rem 1rem 1rem 2.2rem;
+            border: 2px solid var(--gray-300); border-radius: var(--radius);
+            font-size: 1.5rem; font-weight: 700; text-align: center;
+        }
+        .price-input:focus { outline: none; border-color: var(--primary); }
+
+        /* Buttons */
+        .m-btn {
+            width: 100%; padding: 1rem; border: none; border-radius: var(--radius);
+            font-size: 1.1rem; font-weight: 700; cursor: pointer; transition: all .2s;
+        }
+        .m-btn:disabled { opacity: .4; cursor: not-allowed; }
+        .m-btn-primary { background: var(--primary); color: #fff; }
+        .m-btn-primary:active:not(:disabled) { background: var(--primary-dark); }
+        .m-btn-confirm { background: var(--warning); color: #fff; }
+        .m-btn-confirm:active:not(:disabled) { background: #d97706; }
+        .m-btn-success { background: var(--success); color: #fff; }
+
+        /* Confirmation view */
+        .confirm-box {
+            background: var(--warning-light); border: 2px solid var(--warning);
+            border-radius: var(--radius); padding: 1.25rem; text-align: center;
+            margin-bottom: 1rem;
+        }
+        .confirm-box .label { font-size: .85rem; color: var(--gray-500); }
+        .confirm-box .value { font-size: 2rem; font-weight: 800; color: var(--gray-800); margin: .3rem 0; }
+        .confirm-box .group-label { font-size: 1rem; font-weight: 600; color: var(--warning); }
+
+        /* Success view */
+        .success-box {
+            background: var(--success-light); border: 2px solid var(--success);
+            border-radius: var(--radius); padding: 2rem; text-align: center;
+        }
+        .success-box .checkmark { font-size: 3rem; margin-bottom: .5rem; }
+        .success-box .msg { font-size: 1.1rem; font-weight: 600; color: var(--success); }
+        .success-box .detail { font-size: .9rem; color: var(--gray-500); margin-top: .5rem; }
+
+        /* Error */
+        .error-box {
+            background: #fee2e2; border: 2px solid var(--danger); color: var(--danger);
+            border-radius: var(--radius); padding: 1rem; text-align: center;
+            font-weight: 600; margin-bottom: 1rem;
+        }
+
+        /* Waiting */
+        .waiting-box {
+            text-align: center; padding: 2rem;
+        }
+        .waiting-box .spinner {
+            width: 40px; height: 40px; border: 4px solid var(--gray-200);
+            border-top-color: var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; margin: 0 auto 1rem;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .waiting-box p { color: var(--gray-500); }
+
+        .hidden { display: none !important; }
+        .mb { margin-bottom: 1rem; }
+        .text-link { color: var(--primary); text-decoration: underline; cursor: pointer; font-size:.85rem; }
+    </style>
+</head>
+<body>
+    <div class="m-header">
+        <h1>Pricing Game</h1>
+        <div class="round-info" id="m-round-info">連線中...</div>
+    </div>
+    <div class="m-body">
+        <!-- Waiting for round -->
+        <div id="m-waiting" class="m-card">
+            <div class="waiting-box">
+                <div class="spinner"></div>
+                <p>等待老師開啟定價階段...</p>
+            </div>
+        </div>
+
+        <!-- Step 1: Select group -->
+        <div id="m-step1" class="m-card hidden">
+            <h2>步驟一：選擇你的組別</h2>
+            <div class="group-grid" id="m-group-grid"></div>
+        </div>
+
+        <!-- Step 2: Enter price -->
+        <div id="m-step2" class="m-card hidden">
+            <h2>步驟二：輸入你們的定價</h2>
+            <div class="price-input-wrap">
+                <span class="dollar">$</span>
+                <input type="number" class="price-input" id="m-price" placeholder="0" min="0" step="any">
+            </div>
+            <button class="m-btn m-btn-primary" id="m-btn-review" disabled>確認定價</button>
+            <div style="margin-top:.75rem;text-align:center">
+                <span class="text-link" id="m-btn-back-group">重新選擇組別</span>
+            </div>
+        </div>
+
+        <!-- Step 3: Confirm & Upload -->
+        <div id="m-step3" class="m-card hidden">
+            <h2>步驟三：確認並送出</h2>
+            <div class="confirm-box">
+                <div class="group-label" id="m-confirm-group"></div>
+                <div class="label">本次定價</div>
+                <div class="value" id="m-confirm-price"></div>
+            </div>
+            <div id="m-error" class="error-box hidden"></div>
+            <button class="m-btn m-btn-confirm mb" id="m-btn-submit">送出定價（送出後不可修改）</button>
+            <div style="text-align:center">
+                <span class="text-link" id="m-btn-back-price">返回修改價格</span>
+            </div>
+        </div>
+
+        <!-- Step 4: Success -->
+        <div id="m-step4" class="m-card hidden">
+            <div class="success-box">
+                <div class="checkmark">&#10003;</div>
+                <div class="msg">定價已成功送出！</div>
+                <div class="detail" id="m-success-detail"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+(function() {
+    'use strict';
+
+    const API = window.location.origin;
+    let currentState = null;
+    let selectedGroup = null;
+
+    const $ = sel => document.querySelector(sel);
+    const $$ = sel => [...document.querySelectorAll(sel)];
+
+    function fmt(n) { return Number(n).toLocaleString('en-US'); }
+
+    function showView(stepId) {
+        ['#m-waiting', '#m-step1', '#m-step2', '#m-step3', '#m-step4'].forEach(id => {
+            $(id).classList.add('hidden');
+        });
+        $(stepId).classList.remove('hidden');
+    }
+
+    // Poll server state
+    async function pollState() {
+        try {
+            const res = await fetch(`${API}/api/state`);
+            const data = await res.json();
+            currentState = data;
+
+            if (data.round > 0) {
+                $('#m-round-info').textContent = data.roundName || `第${data.round}輪 · 第${data.segment + 1}段`;
+                // If we haven't started input yet, show step 1
+                if ($('#m-waiting').classList.contains('hidden') === false) {
+                    buildGroupGrid(data.numGroups, data.round, data.segment);
+                    showView('#m-step1');
+                }
+            } else {
+                $('#m-round-info').textContent = '等待遊戲開始...';
+                showView('#m-waiting');
+            }
+        } catch (e) {
+            $('#m-round-info').textContent = '連線失敗，重試中...';
+        }
+    }
+
+    // Build group buttons
+    async function buildGroupGrid(numGroups, round, segment) {
+        const grid = $('#m-group-grid');
+        grid.innerHTML = '';
+
+        // Fetch which groups are already locked
+        let lockedGroups = {};
+        try {
+            const res = await fetch(`${API}/api/prices?round=${round}&segment=${segment}`);
+            const data = await res.json();
+            lockedGroups = data.locked || {};
+        } catch (e) {}
+
+        for (let g = 1; g <= numGroups; g++) {
+            const btn = document.createElement('button');
+            btn.className = 'group-btn';
+            btn.textContent = `第${g}組`;
+            if (lockedGroups[g]) {
+                btn.classList.add('disabled');
+                btn.title = '此組已送出';
+            } else {
+                btn.onclick = () => selectGroup(g);
+            }
+            grid.appendChild(btn);
+        }
+    }
+
+    function selectGroup(g) {
+        selectedGroup = g;
+        $$('.group-btn').forEach(b => b.classList.remove('selected'));
+        $$('.group-btn')[g - 1].classList.add('selected');
+        showView('#m-step2');
+        $('#m-price').value = '';
+        $('#m-price').focus();
+        $('#m-btn-review').disabled = true;
+    }
+
+    // Price input
+    $('#m-price').addEventListener('input', () => {
+        const v = parseFloat($('#m-price').value);
+        $('#m-btn-review').disabled = isNaN(v) || v < 0;
+    });
+
+    // Review
+    $('#m-btn-review').onclick = () => {
+        const price = parseFloat($('#m-price').value);
+        if (isNaN(price) || price < 0) return;
+        $('#m-confirm-group').textContent = `第 ${selectedGroup} 組`;
+        $('#m-confirm-price').textContent = `$${fmt(price)}`;
+        $('#m-error').classList.add('hidden');
+        showView('#m-step3');
+    };
+
+    // Back buttons
+    $('#m-btn-back-group').onclick = () => {
+        if (currentState) buildGroupGrid(currentState.numGroups, currentState.round, currentState.segment);
+        showView('#m-step1');
+    };
+    $('#m-btn-back-price').onclick = () => showView('#m-step2');
+
+    // Submit
+    $('#m-btn-submit').onclick = async () => {
+        const price = parseFloat($('#m-price').value);
+        $('#m-btn-submit').disabled = true;
+        $('#m-btn-submit').textContent = '送出中...';
+        try {
+            const res = await fetch(`${API}/api/price`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    round: currentState.round,
+                    segment: currentState.segment,
+                    group: selectedGroup,
+                    price: price,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                $('#m-success-detail').textContent =
+                    `第 ${selectedGroup} 組 · 定價 $${fmt(price)} · ${currentState.roundName || ''}`;
+                showView('#m-step4');
+            } else {
+                $('#m-error').textContent = data.error || '送出失敗，請重試';
+                $('#m-error').classList.remove('hidden');
+                $('#m-btn-submit').disabled = false;
+                $('#m-btn-submit').textContent = '送出定價（送出後不可修改）';
+            }
+        } catch (e) {
+            $('#m-error').textContent = '網路錯誤，請重試';
+            $('#m-error').classList.remove('hidden');
+            $('#m-btn-submit').disabled = false;
+            $('#m-btn-submit').textContent = '送出定價（送出後不可修改）';
+        }
+    };
+
+    // Start polling
+    pollState();
+    setInterval(pollState, 3000);
+
+})();
+</script>
+</body>
+</html>

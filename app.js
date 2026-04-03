@@ -29,6 +29,90 @@
         return Number(n).toLocaleString('en-US');
     }
 
+    // ───── Server Module (QR code mobile input) ─────
+    const server = {
+        available: false,
+        baseUrl: '',
+        mobileUrl: '',
+        _pollingTimer: null,
+
+        async detect() {
+            try {
+                const res = await fetch('/api/ip', { signal: AbortSignal.timeout(2000) });
+                const data = await res.json();
+                this.available = true;
+                this.baseUrl = `http://${data.ip}:${data.port}`;
+                this.mobileUrl = `${this.baseUrl}/mobile.html`;
+                return true;
+            } catch (e) {
+                this.available = false;
+                return false;
+            }
+        },
+
+        async notifyRound(round, segment, roundName, numGroups) {
+            if (!this.available) return;
+            try {
+                await fetch('/api/state', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ round, segment, roundName, numGroups }),
+                });
+            } catch (e) {}
+        },
+
+        async fetchPrices(round, segment) {
+            if (!this.available) return null;
+            try {
+                const res = await fetch(`/api/prices?round=${round}&segment=${segment}`);
+                return await res.json();
+            } catch (e) { return null; }
+        },
+
+        startPolling(round, segment, numGroups, onUpdate) {
+            this.stopPolling();
+            this._pollingTimer = setInterval(async () => {
+                const data = await this.fetchPrices(round, segment);
+                if (data) onUpdate(data.prices, data.locked);
+            }, 2000);
+        },
+
+        stopPolling() {
+            if (this._pollingTimer) {
+                clearInterval(this._pollingTimer);
+                this._pollingTimer = null;
+            }
+        },
+
+        getQRImageUrl(url) {
+            return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(url)}`;
+        },
+
+        buildQRSection(roundNum, segment, numGroups, roundName) {
+            const url = this.mobileUrl;
+            let chips = '';
+            for (let g = 1; g <= numGroups; g++) {
+                chips += `<span class="status-chip" id="qr-chip-${roundNum}-${segment}-${g}">第${g}組</span>`;
+            }
+            return `
+            <div class="qr-section" id="r${roundNum}-qr-section">
+                <h3>各組代表請掃描 QR Code 輸入定價</h3>
+                <div class="qr-display">
+                    <img class="qr-img" src="${this.getQRImageUrl(url)}" alt="QR Code">
+                    <div class="qr-info">
+                        <div style="font-weight:600;font-size:.95rem;margin-bottom:.3rem">${roundName}</div>
+                        <div style="font-size:.85rem;color:var(--gray-500)">掃描後選擇組別並輸入定價</div>
+                        <div class="qr-url">${url}</div>
+                        <div class="submit-status">
+                            <div style="font-size:.8rem;color:var(--gray-500);margin-bottom:.3rem">送出狀態：</div>
+                            <div class="submit-status-grid">${chips}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        },
+    };
+
     function showStep(name) {
         $$('.step').forEach(s => s.classList.remove('active'));
         const el = $(`#step-${name}`);
@@ -185,6 +269,7 @@
                     <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
                     <button class="btn btn-outline" id="r${roundNum}-random-prices">隨機填入定價（QC 測試用）</button>
                 </div>
+                <div id="r${roundNum}-qr-area"></div>
             </div>
             <div id="r${roundNum}-game-area" class="hidden">
                 <div class="draw-controls" id="r${roundNum}-draw-controls">
@@ -257,8 +342,34 @@
             }
         };
 
+        // QR Code mobile input (if server available)
+        if (server.available) {
+            const seg0 = roundData.currentSegment;
+            const rName = roundNames[roundNum] + (canReprice ? '（第 1 段）' : '');
+            server.notifyRound(roundNum, seg0, rName, numGroups);
+            $(`#r${roundNum}-qr-area`).innerHTML = server.buildQRSection(roundNum, seg0, numGroups, rName);
+
+            server.startPolling(roundNum, seg0, numGroups, (prices, locked) => {
+                let allDone = true;
+                for (let g = 1; g <= numGroups; g++) {
+                    const chip = $(`#qr-chip-${roundNum}-${seg0}-${g}`);
+                    if (locked[g]) {
+                        if (chip) chip.classList.add('submitted');
+                        const input = $(`#r${roundNum}-gp-${g - 1}`);
+                        if (input && !input.disabled) {
+                            input.value = prices[g];
+                            input.closest('.pricing-input-card').classList.add('submitted');
+                        }
+                    } else {
+                        allDone = false;
+                    }
+                }
+            });
+        }
+
         // Submit prices
         $(`#r${roundNum}-submit-prices`).onclick = () => {
+            server.stopPolling();
             const seg = roundData.currentSegment;
             const prices = {};
             let valid = true;
@@ -497,10 +608,19 @@
         }
         inputsHtml += '</div>';
 
+        // QR section for repricing modal
+        let modalQR = '';
+        if (server.available) {
+            const rpName = `${roundNum === 4 ? '第四輪' : '第三輪'} · 改價第 ${segment + 1} 段`;
+            server.notifyRound(roundNum, segment, rpName, numGroups);
+            modalQR = server.buildQRSection(roundNum, segment, numGroups, rpName);
+        }
+
         overlay.innerHTML = `
         <div class="modal">
             <h3>重新定價 - 第 ${segment + 1} / ${numSegments} 段</h3>
             <p style="margin-bottom:1rem;color:var(--gray-600)">請各組討論後輸入新定價，接下來將抽取 ${state.config.repricingInterval} 位顧客。</p>
+            ${modalQR}
             ${inputsHtml}
             <div class="text-center mt-1" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
                 <button class="btn btn-outline" id="rp-random-${roundNum}-${segment}">隨機填入定價（QC）</button>
@@ -508,6 +628,20 @@
             </div>
         </div>`;
         document.body.appendChild(overlay);
+
+        // Start polling for repricing modal
+        if (server.available) {
+            server.startPolling(roundNum, segment, numGroups, (prices, locked) => {
+                for (let g = 1; g <= numGroups; g++) {
+                    const chip = $(`#qr-chip-${roundNum}-${segment}-${g}`);
+                    if (locked[g]) {
+                        if (chip) chip.classList.add('submitted');
+                        const input = $(`#rp-${roundNum}-${segment}-${g - 1}`);
+                        if (input) input.value = prices[g];
+                    }
+                }
+            });
+        }
 
         $(`#rp-random-${roundNum}-${segment}`).onclick = () => {
             const allWtp = state.wtpPrices;
@@ -521,6 +655,7 @@
         };
 
         $(`#rp-confirm-${roundNum}-${segment}`).onclick = () => {
+            server.stopPolling();
             const prices = {};
             let valid = true;
             for (let g = 0; g < numGroups; g++) {
@@ -713,6 +848,10 @@
     setInterval(updateClock, 1000);
 
     // ───── Init ─────
+    server.detect().then(ok => {
+        if (ok) console.log('Server detected at', server.baseUrl, '- QR code input enabled');
+        else console.log('No server detected - running in standalone mode (QR disabled)');
+    });
     initSetup();
     initNavigation();
 
