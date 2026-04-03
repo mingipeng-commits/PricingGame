@@ -315,7 +315,7 @@
         state.wtpPrices.forEach((p, i) => {
             const tag = document.createElement('span');
             tag.className = 'wtp-tag';
-            tag.innerHTML = `$${fmt(p)} <span class="remove" data-idx="${i}">&times;</span>`;
+            tag.innerHTML = `Teacher ${i + 1} <span class="remove" data-idx="${i}">&times;</span>`;
             container.appendChild(tag);
         });
         container.querySelectorAll('.remove').forEach(btn => {
