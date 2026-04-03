@@ -181,7 +181,10 @@
             <div id="r${roundNum}-pricing-section">
                 <h3 style="margin-bottom:.75rem">各組定價 ${canReprice ? '（第 1 段）' : ''}</h3>
                 <div class="pricing-input-grid" id="r${roundNum}-pricing-grid"></div>
-                <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
+                <div style="display:flex;gap:.75rem;flex-wrap:wrap">
+                    <button class="btn btn-primary" id="r${roundNum}-submit-prices">鎖定價格並開始抽籤</button>
+                    <button class="btn btn-outline" id="r${roundNum}-random-prices">隨機填入定價（QC 測試用）</button>
+                </div>
             </div>
             <div id="r${roundNum}-game-area" class="hidden">
                 <div class="draw-controls" id="r${roundNum}-draw-controls">
@@ -238,6 +241,21 @@
         let wtpPool = [...state.wtpPrices];
         shuffle(wtpPool);
         wtpPool = wtpPool.slice(0, numCustomers);
+
+        // Random price fill (QC testing)
+        $(`#r${roundNum}-random-prices`).onclick = () => {
+            const allWtp = state.wtpPrices;
+            const lo = Math.min(...allWtp);
+            const hi = Math.max(...allWtp);
+            const rangeLo = Math.floor(lo * 0.9);
+            const rangeHi = Math.ceil(hi * 1.1);
+            for (let g = 0; g < numGroups; g++) {
+                const input = $(`#r${roundNum}-gp-${g}`);
+                if (input && !input.disabled) {
+                    input.value = Math.round(rangeLo + Math.random() * (rangeHi - rangeLo));
+                }
+            }
+        };
 
         // Submit prices
         $(`#r${roundNum}-submit-prices`).onclick = () => {
@@ -484,11 +502,23 @@
             <h3>重新定價 - 第 ${segment + 1} / ${numSegments} 段</h3>
             <p style="margin-bottom:1rem;color:var(--gray-600)">請各組討論後輸入新定價，接下來將抽取 ${state.config.repricingInterval} 位顧客。</p>
             ${inputsHtml}
-            <div class="text-center mt-1">
+            <div class="text-center mt-1" style="display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
+                <button class="btn btn-outline" id="rp-random-${roundNum}-${segment}">隨機填入定價（QC）</button>
                 <button class="btn btn-warning btn-lg" id="rp-confirm-${roundNum}-${segment}">確認新定價</button>
             </div>
         </div>`;
         document.body.appendChild(overlay);
+
+        $(`#rp-random-${roundNum}-${segment}`).onclick = () => {
+            const allWtp = state.wtpPrices;
+            const lo = Math.min(...allWtp);
+            const hi = Math.max(...allWtp);
+            const rangeLo = Math.floor(lo * 0.9);
+            const rangeHi = Math.ceil(hi * 1.1);
+            for (let g = 0; g < numGroups; g++) {
+                $(`#rp-${roundNum}-${segment}-${g}`).value = Math.round(rangeLo + Math.random() * (rangeHi - rangeLo));
+            }
+        };
 
         $(`#rp-confirm-${roundNum}-${segment}`).onclick = () => {
             const prices = {};
