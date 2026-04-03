@@ -141,7 +141,7 @@
         $('#numStudents').addEventListener('input', calc);
         $('#numGroups').addEventListener('input', calc);
 
-        $('#btn-start-game').addEventListener('click', () => {
+        $('#btn-start-game').addEventListener('click', async () => {
             state.config.numStudents = +$('#numStudents').value;
             state.config.numGroups = +$('#numGroups').value;
             state.config.numCustomers = +$('#numCustomers').value;
@@ -149,6 +149,8 @@
             state.config.supplyLimit = +$('#supplyLimit').value;
             state.config.productName = $('#productName').value || '產品';
             state.config.drawMode = document.querySelector('input[name="drawMode"]:checked').value;
+            // Re-detect server in case it started after page load
+            if (!server.available) await server.detect();
             initWTP();
             showStep('wtp');
         });
@@ -848,10 +850,22 @@
     setInterval(updateClock, 1000);
 
     // ───── Init ─────
-    server.detect().then(ok => {
-        if (ok) console.log('Server detected at', server.baseUrl, '- QR code input enabled');
-        else console.log('No server detected - running in standalone mode (QR disabled)');
-    });
+    async function detectServer() {
+        const box = $('#server-status-box');
+        const txt = $('#server-status-text');
+        const ok = await server.detect();
+        if (box) box.classList.remove('hidden');
+        if (ok) {
+            if (txt) txt.innerHTML = `<span style="color:var(--success)">已連線</span> — ${server.mobileUrl}`;
+            if (box) box.style.borderLeftColor = 'var(--success)';
+            console.log('Server detected at', server.baseUrl);
+        } else {
+            if (txt) txt.innerHTML = `<span style="color:var(--gray-400)">未偵測到伺服器</span>（請先執行 <code>node server.js</code>，或直接手動輸入定價）`;
+            if (box) box.style.borderLeftColor = 'var(--gray-400)';
+            console.log('No server detected - standalone mode');
+        }
+    }
+    detectServer();
     initSetup();
     initNavigation();
 
